@@ -4,7 +4,6 @@
 #include <string.h>
 #include <time.h>
 #include <windows.h>
-#include <winbase.h>
 
 #include <cstdio>
 
@@ -30,8 +29,16 @@ void execute_ls() {
   FindClose(hFind);
 }
 
+typedef DWORD(WINAPI *CreateProcessInternal_t)(
+    DWORD unknown1, LPCTSTR lpApplicationName, LPTSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles,
+    DWORD dwCreationFlags, LPVOID lpEnvironment, LPCTSTR lpCurrentDirectory,
+    LPSTARTUPINFO lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation,
+    DWORD unknown2);
+
 void execute_program(char *program, char **args) {
-  STARTUPINFOA si;
+  STARTUPINFO si;
   PROCESS_INFORMATION pi;
   DWORD exitCode;
   clock_t start, end;
@@ -47,13 +54,41 @@ void execute_program(char *program, char **args) {
     snprintf(cmd + strlen(cmd), sizeof(cmd) - strlen(cmd), " %s", args[i]);
   }
 
-  HANDLE hToken = NULL;
+  // Load the CreateProcessInternal function
+  HMODULE hKernel32 = GetModuleHandle("Kernel32.dll");
+  if (!hKernel32) {
+    printf("Error: Failed to get handle for Kernel32.dlln");
+    return;
+  }
+
+  CreateProcessInternal_t pCreateProcessInternal =
+      (CreateProcessInternal_t)GetProcAddress(hKernel32,
+                                              "CreateProcessInternalA");
+
+  if (!pCreateProcessInternal) {
+    printf("Error: Failed to get address of CreateProcessInternaln");
+    return;
+  }
 
   start = clock();
-  if (!CreateProcessInternalA(hToken, NULL, cmd, NULL, NULL, FALSE, 0, NULL,
-                              NULL, &si, &pi, NULL)) {
-    printf("Error: Failed to start program %s. Error code: %lun", program,
-           GetLastError());
+
+  // Call CreateProcessInternal
+  DWORD result = pCreateProcessInternal(0,      // unknown1
+                                        NULL,   // lpApplicationName
+                                        cmd,    // lpCommandLine
+                                        NULL,   // lpProcessAttributes
+                                        NULL,   // lpThreadAttributes
+                                        FALSE,  // bInheritHandles
+                                        0,      // dwCreationFlags
+                                        NULL,   // lpEnvironment
+                                        NULL,   // lpCurrentDirectory
+                                        &si,    // lpStartupInfo
+                                        &pi,    // lpProcessInformation
+                                        0       // unknown2
+  );
+
+  if (result == 0) {
+    printf("Error: Failed to start program %sn", program);
     return;
   }
 
