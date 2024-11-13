@@ -1,0 +1,26 @@
+name: Format Check
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up clang-format
+        run: sudo apt-get install clang-format
+
+      - name: Check formatting
+        run: |
+          unformatted_files=$(find . -name '*.cpp' -o -name '*.hpp' | xargs clang-format --style=google --dry-run --Werror)
+          
+          if [ -n "$unformatted_files" ]; then
+            echo "The following files are not formatted correctly:"
+            echo "$unformatted_files"
+            exit 1
+          else
+            echo "All files are formatted correctly."
+          fi
