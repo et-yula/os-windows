@@ -88,7 +88,7 @@ void execute_program(char *program, char **args) {
   );
 
   if (result == 0) {
-    printf("Error: Failed to start program %sn", program);
+    printf("Error: Failed to start program %s\n", program);
     return;
   }
 

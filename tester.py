@@ -39,10 +39,12 @@ def run_and_validate(output_filename, input_data, validate_output):
 def main():
     output_filename = "main.exe"
     output_benchmark = "benchmark.exe"
+    output_benchmark2 = "benchmark2.exe"
     cpp_source = [str(file) for file in Path("./source").rglob("*.cpp")]
-    cpp_benchmark = [str(file) for file in Path("./benchmark").rglob("*.cpp")]
-    input_data = ["cd build\n./main.exe\nexit\n"]
-    output_data = ["__PATH__$ __PATH__\\build$ Sleep 5.5s...\nDone\nExecution time: __NUM__ seconds\n__PATH__\\build$ "]
+    cpp_benchmark = [str(file) for file in Path("./benchmark").rglob("*1.cpp")]
+    cpp_benchmark2 = [str(file) for file in Path("./benchmark").rglob("*2.cpp")]
+    input_data = ["cd build\n./benchmark.exe\nexit\n", "cd build\n./benchmark2.exe\nexit\n"]
+    output_data = ["__PATH__$ __PATH__\\build$ Sleep 1.5s...\nDone\nExecution time: __NUM__ seconds\n__PATH__\\build$ ", "_"]
     
     def validate_output(test_number, input_value, output_value):
         cout = output_value.replace(os.path.dirname(os.path.abspath(__file__)), "__PATH__")
@@ -55,7 +57,8 @@ def main():
 
     if compile_sources(output_filename, cpp_source):
         if compile_sources(output_benchmark, cpp_benchmark):
-            run_and_validate(output_benchmark, input_data, validate_output)
+            if compile_sources(output_benchmark2, cpp_benchmark2):
+                run_and_validate(output_filename, input_data, validate_output)
 
 if __name__ == "__main__":
     main()
