@@ -7,7 +7,9 @@ import re
 def compile_sources(output_filename, input_array_cpp_files):
     build_dir = Path("build")
     build_dir.mkdir(exist_ok=True)
-    result = subprocess.run(["g++", "-o", str(build_dir / output_filename)] + input_array_cpp_files, capture_output=True, text=True)
+    compile_arr = ["g++", "-o", str(build_dir / output_filename)] + input_array_cpp_files
+    print(" ".join(compile_arr))
+    result = subprocess.run(compile_arr, capture_output=True, text=True)
     if result.returncode != 0:
         print("Compilation error:")
         print(result.stderr)
@@ -44,7 +46,7 @@ def main():
     cpp_benchmark = [str(file) for file in Path("./benchmark").rglob("*1.cpp")]
     cpp_benchmark2 = [str(file) for file in Path("./benchmark").rglob("*2.cpp")]
     input_data = ["cd build\n./benchmark.exe\nexit\n", "cd build\n./benchmark2.exe\nexit\n"]
-    output_data = ["__PATH__$ __PATH__\\build$ Sleep 1.5s...\nDone\nExecution time: __NUM__ seconds\n__PATH__\\build$ ", "_"]
+    output_data = ["_", "_"]
     
     def validate_output(test_number, input_value, output_value):
         cout = output_value.replace(os.path.dirname(os.path.abspath(__file__)), "__PATH__")

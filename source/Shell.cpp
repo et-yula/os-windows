@@ -73,7 +73,7 @@ void execute_program(char *program, char **args) {
   start = clock();
 
   // Call CreateProcessInternal
-  DWORD result = pCreateProcessInternal(0,      // unknown1
+  DWORD result = pCreateProcessInternal(0,
                                         NULL,   // lpApplicationName
                                         cmd,    // lpCommandLine
                                         NULL,   // lpProcessAttributes
@@ -84,8 +84,7 @@ void execute_program(char *program, char **args) {
                                         NULL,   // lpCurrentDirectory
                                         &si,    // lpStartupInfo
                                         &pi,    // lpProcessInformation
-                                        0       // unknown2
-  );
+                                        0);     // unknown2
 
   if (result == 0) {
     printf("Error: Failed to start program %s\n", program);
