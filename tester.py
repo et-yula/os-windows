@@ -90,9 +90,9 @@ def main():
     if compile_sources(output_filename, cpp_source):
         if compile_sources(output_benchmark, cpp_benchmark):
             if compile_sources(output_benchmark2, cpp_benchmark2):
-                create_random_binary_file("input_file.txt",256*1024); # 256 MB
+                create_random_binary_file("build/input_file.txt",256*1024); # 256 MB
                 run_and_validate(output_filename, input_data, validate_output)
-                if not is_sorted(read_binary_file("output_file.txt")):
+                if not is_sorted(read_binary_file("build/output_file.txt")):
                     print("The array from benchmark №1 is not sorted!")
                     exit(0)
 

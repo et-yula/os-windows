@@ -54,10 +54,9 @@ void execute_program(char *program, char **args) {
     snprintf(cmd + strlen(cmd), sizeof(cmd) - strlen(cmd), " %s", args[i]);
   }
 
-  // Load the CreateProcessInternal function
   HMODULE hKernel32 = GetModuleHandle("Kernel32.dll");
   if (!hKernel32) {
-    printf("Error: Failed to get handle for Kernel32.dlln");
+    printf("Error: Failed to get handle for Kernel32.dll\n");
     return;
   }
 
@@ -66,13 +65,12 @@ void execute_program(char *program, char **args) {
                                               "CreateProcessInternalA");
 
   if (!pCreateProcessInternal) {
-    printf("Error: Failed to get address of CreateProcessInternaln");
+    printf("Error: Failed to get address of CreateProcessInternal\n");
     return;
   }
 
   start = clock();
 
-  // Call CreateProcessInternal
   DWORD result = pCreateProcessInternal(0,
                                         NULL,   // lpApplicationName
                                         cmd,    // lpCommandLine
@@ -95,7 +93,7 @@ void execute_program(char *program, char **args) {
   end = clock();
 
   time_spent = static_cast<double>(end - start) / CLOCKS_PER_SEC;
-  printf("Execution time: %.3f secondsn", time_spent);
+  printf("Execution time: %.3f seconds\n", time_spent);
 
   GetExitCodeProcess(pi.hProcess, &exitCode);
   CloseHandle(pi.hProcess);
