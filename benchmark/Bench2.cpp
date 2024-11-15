@@ -22,9 +22,6 @@ void benchmark_sort(int size, int runs) {
   }
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> duration = end - start;
-
-  std::cout << "Time taken to sort " << size
-            << " elements: " << duration.count() << " ms" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
