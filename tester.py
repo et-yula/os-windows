@@ -33,6 +33,10 @@ def run_and_validate(output_filename, input_data, validate_output):
             time.sleep(0.5)
         process.stdin.close()
         stdout, stderr = process.communicate()
+        print('===')
+        print(stdout)
+        print('===')
+        print(stderr)
         if process.returncode != 0:
             print(f"Error during test {(i+1)} with input data: {input_value}")
             print(stderr)
