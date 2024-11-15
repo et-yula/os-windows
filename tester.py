@@ -3,6 +3,7 @@ import subprocess
 import time
 from pathlib import Path
 import re
+import struct
 
 def compile_sources(output_filename, input_array_cpp_files):
     build_dir = Path("build")
@@ -13,7 +14,7 @@ def compile_sources(output_filename, input_array_cpp_files):
     if result.returncode != 0:
         print("Compilation error:")
         print(result.stderr)
-        return False
+        exit(1)
     else:
         return True
 
@@ -35,8 +36,33 @@ def run_and_validate(output_filename, input_data, validate_output):
         if process.returncode != 0:
             print(f"Error during test {(i+1)} with input data: {input_value}")
             print(stderr)
-            continue
+            exit(1)
         validate_output(i+1, input_value, stdout)
+
+def read_binary_file(filename):
+    if not os.path.exists(filename):
+        print(f"Error: File {filename} does not exist.")
+        exit(1)
+    int_array = []
+    with open(filename, 'rb') as file:
+        while True:
+            bytes_read = file.read(4)
+            if not bytes_read:
+                break
+            value = struct.unpack('i', bytes_read)[0]
+            int_array.append(value)
+    return int_array
+
+def is_sorted(int_array):
+    for i in range(1, len(int_array)):
+        if int_array[i] < int_array[i - 1]:
+            return False
+    return True
+
+def create_random_binary_file(filename, length):
+    with open(filename, 'wb') as f:
+        random_bytes = os.urandom(length)
+        f.write(random_bytes)
 
 def main():
     output_filename = "main.exe"
@@ -45,8 +71,8 @@ def main():
     cpp_source = [str(file) for file in Path("./source").rglob("*.cpp")]
     cpp_benchmark = [str(file) for file in Path("./benchmark").rglob("*1.cpp")]
     cpp_benchmark2 = [str(file) for file in Path("./benchmark").rglob("*2.cpp")]
-    input_data = ["cd build\n./benchmark.exe\nexit\n", "cd build\n./benchmark2.exe\nexit\n"]
-    output_data = ["_", "_"]
+    input_data = ["cd build\n./benchmark.exe input_file.txt output_file.txt\nexit\n", "cd build\n./benchmark2.exe 256000 2\nexit\n"]
+    output_data = ["__PATH__$ __PATH__\\build$ Sleep 1.5s...\nDone\nExecution time: __NUM__ seconds\n__PATH__\\build$ ", "_"]
     
     def validate_output(test_number, input_value, output_value):
         cout = output_value.replace(os.path.dirname(os.path.abspath(__file__)), "__PATH__")
@@ -60,7 +86,11 @@ def main():
     if compile_sources(output_filename, cpp_source):
         if compile_sources(output_benchmark, cpp_benchmark):
             if compile_sources(output_benchmark2, cpp_benchmark2):
+                create_random_binary_file("input_file.txt",256*1024); # 256 MB
                 run_and_validate(output_filename, input_data, validate_output)
+                if not is_sorted(read_binary_file("output_file.txt")):
+                    print("The array from benchmark №1 is not sorted!")
+                    exit(0)
 
 if __name__ == "__main__":
     main()
