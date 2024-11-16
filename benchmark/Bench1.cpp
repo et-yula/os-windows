@@ -1,49 +1,82 @@
 // Copyright 2024 et-yula
 
+#include <windows.h>
+
 #include <algorithm>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
 
-size_t get_file_size(const std::string& filename) {
-  std::ifstream file(filename, std::ios::binary | std::ios::ate);
-  return file.tellg();
+void check_handle(HANDLE handle, const std::string& filename) {
+  if (handle == INVALID_HANDLE_VALUE) {
+    std::cerr << "Error opening file: " << filename << std::endl;
+    exit(1);
+  }
 }
 
-void sort_and_save_chunk(std::ifstream& input, const std::string& temp_file,
+size_t get_file_size(const std::string& filename) {
+  HANDLE hFile = CreateFileA(filename.c_str(), GENERIC_READ, 0, NULL,
+                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  check_handle(hFile, filename);
+  LARGE_INTEGER fileSize;
+  if (!GetFileSizeEx(hFile, &fileSize)) {
+    CloseHandle(hFile);
+    std::cerr << "Error getting file size." << std::endl;
+    return 0;
+  }
+  CloseHandle(hFile);
+  return static_cast<size_t>(fileSize.QuadPart);
+}
+
+void sort_and_save_chunk(HANDLE input, const std::string& temp_file,
                          size_t chunk_size) {
   std::vector<int> buffer(chunk_size);
+  DWORD bytesRead;
   size_t count = 0;
 
-  while (input.read(reinterpret_cast<char*>(buffer.data() + count),
-                    (chunk_size - count) * sizeof(int)) &&
-         count < chunk_size) {
-    count += input.gcount() / sizeof(int);
+  while (ReadFile(input, buffer.data() + count * sizeof(int),
+                  (chunk_size - count) * sizeof(int), &bytesRead, NULL) &&
+         bytesRead > 0) {
+    count += bytesRead / sizeof(int);
+    if (count >= chunk_size) break;
   }
 
   buffer.resize(count);
   std::sort(buffer.begin(), buffer.end());
 
-  std::ofstream temp(temp_file, std::ios::binary | std::ios::app);
-  temp.write(reinterpret_cast<char*>(buffer.data()), count * sizeof(int));
+  HANDLE temp =
+      CreateFileA(temp_file.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                  FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, NULL);
+  check_handle(temp, temp_file);
+  DWORD bytesWritten;
+  WriteFile(temp, buffer.data(), count * sizeof(int), &bytesWritten, NULL);
+  CloseHandle(temp);
 }
 
 void merge_files(const std::vector<std::string>& temp_files,
                  const std::string& output_file) {
-  std::vector<std::ifstream> temp_streams;
+  std::vector<HANDLE> temp_handles;
   for (const auto& file : temp_files) {
-    temp_streams.emplace_back(file, std::ios::binary);
+    HANDLE hTemp = CreateFileA(file.c_str(), GENERIC_READ, 0, NULL,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    check_handle(hTemp, file);
+    temp_handles.push_back(hTemp);
   }
 
-  std::ofstream output(output_file, std::ios::binary);
-  std::vector<int> min_elements(temp_streams.size());
-  std::vector<bool> eof_flags(temp_streams.size(), false);
+  HANDLE output =
+      CreateFileA(output_file.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                  FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, NULL);
+  check_handle(output, output_file);
 
-  for (size_t i = 0; i < temp_streams.size(); ++i) {
-    if (!temp_streams[i].read(reinterpret_cast<char*>(&min_elements[i]),
-                              sizeof(int))) {
+  std::vector<int> min_elements(temp_handles.size());
+  std::vector<bool> eof_flags(temp_handles.size(), false);
+
+  DWORD bytesRead;
+  for (size_t i = 0; i < temp_handles.size(); ++i) {
+    if (!ReadFile(temp_handles[i], &min_elements[i], sizeof(int), &bytesRead,
+                  NULL) ||
+        bytesRead == 0) {
       eof_flags[i] = true;
     }
   }
@@ -61,12 +94,19 @@ void merge_files(const std::vector<std::string>& temp_files,
 
     if (min_index == -1) break;
 
-    output.write(reinterpret_cast<char*>(&min_value), sizeof(int));
+    DWORD bytesWritten;
+    WriteFile(output, &min_value, sizeof(int), &bytesWritten, NULL);
 
-    if (!temp_streams[min_index].read(
-            reinterpret_cast<char*>(&min_elements[min_index]), sizeof(int))) {
+    if (!ReadFile(temp_handles[min_index], &min_elements[min_index],
+                  sizeof(int), &bytesRead, NULL) ||
+        bytesRead == 0) {
       eof_flags[min_index] = true;
     }
+  }
+
+  CloseHandle(output);
+  for (auto handle : temp_handles) {
+    CloseHandle(handle);
   }
 }
 
@@ -76,27 +116,26 @@ int main(int argc, char* argv[]) {
               << std::endl;
     return 1;
   }
-
   const std::string input_file = argv[1];
   const std::string output_file = argv[2];
   const std::string temp_prefix = "temp_chunk_";
 
   const size_t max_memory_size = get_file_size(input_file) / 8;
 
-  std::ifstream input(input_file, std::ios::binary);
-  if (!input) {
-    std::cerr << "Error opening input file." << std::endl;
-    return 1;
-  }
+  HANDLE input = CreateFileA(input_file.c_str(), GENERIC_READ, 0, NULL,
+                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  check_handle(input, input_file);
 
   std::vector<std::string> temp_files;
   size_t chunk_index = 0;
 
-  while (!input.eof()) {
+  for (int i = 0; i < 8; i++) {
     std::string temp_file = temp_prefix + std::to_string(chunk_index++);
     sort_and_save_chunk(input, temp_file, max_memory_size / sizeof(int));
     temp_files.push_back(temp_file);
   }
+
+  CloseHandle(input);
 
   merge_files(temp_files, output_file);
 
