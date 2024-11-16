@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 
 void benchmark_sort(int size, int runs) {
   unsigned int seed = 123;
