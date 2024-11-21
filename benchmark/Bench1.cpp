@@ -8,14 +8,14 @@
 #include <string>
 #include <vector>
 
-void check_handle(HANDLE handle, const std::string& filename) {
+void check_handle(HANDLE handle, const std::string &filename) {
   if (handle == INVALID_HANDLE_VALUE) {
     std::cerr << "Error opening file: " << filename << std::endl;
     exit(1);
   }
 }
 
-size_t get_file_size(const std::string& filename) {
+size_t get_file_size(const std::string &filename) {
   HANDLE hFile = CreateFileA(filename.c_str(), GENERIC_READ, 0, NULL,
                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   check_handle(hFile, filename);
@@ -29,7 +29,7 @@ size_t get_file_size(const std::string& filename) {
   return static_cast<size_t>(fileSize.QuadPart);
 }
 
-void sort_and_save_chunk(HANDLE input, const std::string& temp_file,
+void sort_and_save_chunk(HANDLE input, const std::string &temp_file,
                          size_t chunk_size) {
   std::vector<int> buffer(chunk_size);
   DWORD bytesRead;
@@ -54,10 +54,10 @@ void sort_and_save_chunk(HANDLE input, const std::string& temp_file,
   CloseHandle(temp);
 }
 
-void merge_files(const std::vector<std::string>& temp_files,
-                 const std::string& output_file) {
+void merge_files(const std::vector<std::string> &temp_files,
+                 const std::string &output_file) {
   std::vector<HANDLE> temp_handles;
-  for (const auto& file : temp_files) {
+  for (const auto &file : temp_files) {
     HANDLE hTemp = CreateFileA(file.c_str(), GENERIC_READ, 0, NULL,
                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     check_handle(hTemp, file);
@@ -81,6 +81,10 @@ void merge_files(const std::vector<std::string>& temp_files,
     }
   }
 
+  const size_t buffer_size = 8192 / sizeof(int);
+  std::vector<int> buffer;
+  buffer.reserve(buffer_size);
+
   while (true) {
     int min_index = -1;
     int min_value = std::numeric_limits<int>::max();
@@ -94,14 +98,26 @@ void merge_files(const std::vector<std::string>& temp_files,
 
     if (min_index == -1) break;
 
-    DWORD bytesWritten;
-    WriteFile(output, &min_value, sizeof(int), &bytesWritten, NULL);
+    buffer.push_back(min_value);
 
     if (!ReadFile(temp_handles[min_index], &min_elements[min_index],
                   sizeof(int), &bytesRead, NULL) ||
         bytesRead == 0) {
       eof_flags[min_index] = true;
     }
+
+    if (buffer.size() == buffer_size) {
+      DWORD bytesWritten;
+      WriteFile(output, buffer.data(), buffer.size() * sizeof(int),
+                &bytesWritten, NULL);
+      buffer.clear();
+    }
+  }
+
+  if (!buffer.empty()) {
+    DWORD bytesWritten;
+    WriteFile(output, buffer.data(), buffer.size() * sizeof(int), &bytesWritten,
+              NULL);
   }
 
   CloseHandle(output);
@@ -110,7 +126,7 @@ void merge_files(const std::vector<std::string>& temp_files,
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   if (argc != 3) {
     std::cerr << "Usage: " << argv[0] << " input_file.txt output_file.txt"
               << std::endl;
@@ -139,7 +155,7 @@ int main(int argc, char* argv[]) {
 
   merge_files(temp_files, output_file);
 
-  for (const auto& file : temp_files) {
+  for (const auto &file : temp_files) {
     remove(file.c_str());
   }
 
