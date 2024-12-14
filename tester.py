@@ -109,9 +109,6 @@ def main():
                     
                     run_and_validate(output_filename, input_data, validate_output)
                     
-                    if not is_sorted(read_binary_file("build/output_file.txt")):
-                        print("The array from benchmark 1 is not sorted!")
-                        exit(1)
                     exit(0)
 
 if __name__ == "__main__":
