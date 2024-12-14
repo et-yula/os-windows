@@ -1,7 +1,10 @@
+// Copyright 2024 et-yula
+
 #include <windows.h>
 
 #include <iostream>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #define BLOCK_SIZE 8192
@@ -103,7 +106,7 @@ void lru_add_to_cache(int fd, off_t offset, void *data) {
     return;
   }
 
-  lru_node *new_node = (lru_node *)malloc(sizeof(lru_node));
+  lru_node *new_node = reinterpret_cast<lru_node *>(malloc(sizeof(lru_node)));
   new_node->fd = fd;
   new_node->offset = offset;
   new_node->data = data;
@@ -155,7 +158,7 @@ void lru_sync(int fd, off_t offset, void *data) {
 }
 
 __declspec(dllexport) ssize_t __cdecl lab2_open(const char *path) {
-  my_file *mf = (my_file *)malloc(sizeof(my_file));
+  my_file *mf = reinterpret_cast<my_file *>(malloc(sizeof(my_file)));
 
   mf->handle =
       CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
