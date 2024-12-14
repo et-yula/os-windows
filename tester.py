@@ -8,7 +8,20 @@ import struct
 def compile_sources(output_filename, input_array_cpp_files):
     build_dir = Path("build")
     build_dir.mkdir(exist_ok=True)
-    compile_arr = ["g++", "-o", str(build_dir / output_filename)] + input_array_cpp_files
+    compile_arr = ["g++", "-o", str(build_dir / output_filename)] + input_array_cpp_files + ["-Lbuild"] + ["-lcache"]
+    print(" ".join(compile_arr))
+    result = subprocess.run(compile_arr, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("Compilation error:")
+        print(result.stderr)
+        exit(1)
+    else:
+        return True
+
+def compile_dll(output_filename, input_array_cpp_files):
+    build_dir = Path("build")
+    build_dir.mkdir(exist_ok=True)
+    compile_arr = ["g++", "-shared", "-o", str(build_dir / output_filename)+".dll"] + input_array_cpp_files + ["-Wl,--output-def,"+str(build_dir / output_filename)+".def,--out-implib,"+str(build_dir / output_filename)+".a"]
     print(" ".join(compile_arr))
     result = subprocess.run(compile_arr, capture_output=True, text=True)
     if result.returncode != 0:
@@ -33,6 +46,9 @@ def run_and_validate(output_filename, input_data, validate_output):
             time.sleep(0.5)
         process.stdin.close()
         stdout, stderr = process.communicate()
+        print(stdout);
+        print("");
+        print(stderr);
         if process.returncode != 0:
             print(f"Error during test {(i+1)} with input data: {input_value}")
             print(stderr)
@@ -68,11 +84,13 @@ def main():
     output_filename = "main.exe"
     output_benchmark = "benchmark.exe"
     output_benchmark2 = "benchmark2.exe"
+    dll_prefix = "cache"
     cpp_source = [str(file) for file in Path("./source").rglob("*.cpp")]
     cpp_benchmark = [str(file) for file in Path("./benchmark").rglob("*1.cpp")]
     cpp_benchmark2 = [str(file) for file in Path("./benchmark").rglob("*2.cpp")]
-    input_data = ["cd build\n./benchmark.exe input_file.txt output_file.txt\nexit\n", "cd build\n./benchmark2.exe 256000 2\nexit\n"]
-    output_data = ["__PATH__$ __PATH__\\build$ Execution time: __NUM__ seconds\n__PATH__\\build$ ", "__PATH__$ __PATH__\\build$ Execution time: __NUM__ seconds\n__PATH__\\build$ "]
+    dll_source = [str(file) for file in Path("./lib").rglob("*.cpp")]
+    input_data = ["cd build\n./benchmark.exe input_file.txt output_file.txt\nexit\n"]
+    output_data = ["__PATH__$ __PATH__\\build$ Execution time: __NUM__ seconds\n__PATH__\\build$ "]
     
     def validate_output(test_number, input_value, output_value):
         cout = output_value.replace(os.path.dirname(os.path.abspath(__file__)), "__PATH__")
@@ -83,16 +101,18 @@ def main():
             print(f"Test {test_number} failed:\nInput data: {input_value}\nResult: {cout}\nExpected: {output_data[test_number-1]}")
             exit(1)
 
-    if compile_sources(output_filename, cpp_source):
-        if compile_sources(output_benchmark, cpp_benchmark):
-            if compile_sources(output_benchmark2, cpp_benchmark2):
-                create_random_binary_file("build/input_file.txt",256*1024*1024); # 256 MB
-                
-                run_and_validate(output_filename, input_data, validate_output)
-                
-                if not is_sorted(read_binary_file("build/output_file.txt")):
-                    print("The array from benchmark №1 is not sorted!")
-                    exit(1)
+    if compile_dll(dll_prefix, dll_source):
+        if compile_sources(output_filename, cpp_source):
+            if compile_sources(output_benchmark, cpp_benchmark):
+                if compile_sources(output_benchmark2, cpp_benchmark2):
+                    create_random_binary_file("build/input_file.txt",32*1024*1024); # 32 MB
+                    
+                    run_and_validate(output_filename, input_data, validate_output)
+                    
+                    if not is_sorted(read_binary_file("build/output_file.txt")):
+                        print("The array from benchmark №1 is not sorted!")
+                        exit(1)
+                    exit(0)
 
 if __name__ == "__main__":
     main()

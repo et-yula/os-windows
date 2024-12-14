@@ -8,8 +8,17 @@
 #include <string>
 #include <vector>
 
-void check_handle(HANDLE handle, const std::string &filename) {
-  if (handle == INVALID_HANDLE_VALUE) {
+__declspec(dllimport) ssize_t __cdecl lab2_open(const char *path);
+__declspec(dllimport) ssize_t __cdecl lab2_close(int fd);
+__declspec(dllimport) ssize_t
+    __cdecl lab2_read(int fd, unsigned char *buf, size_t count);
+__declspec(dllimport) ssize_t
+    __cdecl lab2_write(int fd, unsigned char *buf, size_t count);
+__declspec(dllimport) off_t __cdecl lab2_lseek(int fd, off_t offset);
+__declspec(dllimport) ssize_t __cdecl lab2_fsync(int fd);
+
+void check_handle(ssize_t handle, const std::string &filename) {
+  if (handle < 0) {
     std::cerr << "Error opening file: " << filename << std::endl;
     exit(1);
   }
@@ -18,7 +27,10 @@ void check_handle(HANDLE handle, const std::string &filename) {
 size_t get_file_size(const std::string &filename) {
   HANDLE hFile = CreateFileA(filename.c_str(), GENERIC_READ, 0, NULL,
                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-  check_handle(hFile, filename);
+  if (hFile == INVALID_HANDLE_VALUE) {
+    std::cerr << "Error opening file: " << filename << std::endl;
+    exit(1);
+  }
   LARGE_INTEGER fileSize;
   if (!GetFileSizeEx(hFile, &fileSize)) {
     CloseHandle(hFile);
@@ -29,54 +41,49 @@ size_t get_file_size(const std::string &filename) {
   return static_cast<size_t>(fileSize.QuadPart);
 }
 
-void sort_and_save_chunk(HANDLE input, const std::string &temp_file,
+void sort_and_save_chunk(int input_fd, const std::string &temp_file,
                          size_t chunk_size) {
   std::vector<int> buffer(chunk_size);
-  DWORD bytesRead;
-  size_t count = 0;
 
-  while (ReadFile(input, buffer.data() + count * sizeof(int),
-                  (chunk_size - count) * sizeof(int), &bytesRead, NULL) &&
-         bytesRead > 0) {
-    count += bytesRead / sizeof(int);
-    if (count >= chunk_size) break;
+  ssize_t bytesRead;
+  if (lab2_read(input_fd, reinterpret_cast<unsigned char *>(buffer.data()),
+                chunk_size * sizeof(int)) != 0) {
+    std::cerr << "Error read file in sort_and_save_chunk" << std::endl;
+    return;
   }
 
-  buffer.resize(count);
   std::sort(buffer.begin(), buffer.end());
 
-  HANDLE temp =
-      CreateFileA(temp_file.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                  FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, NULL);
-  check_handle(temp, temp_file);
-  DWORD bytesWritten;
-  WriteFile(temp, buffer.data(), count * sizeof(int), &bytesWritten, NULL);
-  CloseHandle(temp);
+  ssize_t temp_fd = lab2_open(temp_file.c_str());
+  check_handle(temp_fd, temp_file);
+
+  lab2_write(temp_fd, reinterpret_cast<unsigned char *>(buffer.data()),
+             chunk_size * sizeof(int));
+  lab2_close(temp_fd);
 }
 
 void merge_files(const std::vector<std::string> &temp_files,
                  const std::string &output_file) {
-  std::vector<HANDLE> temp_handles;
+  std::vector<int> temp_fds;
+
   for (const auto &file : temp_files) {
-    HANDLE hTemp = CreateFileA(file.c_str(), GENERIC_READ, 0, NULL,
-                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    ssize_t hTemp = lab2_open(file.c_str());
     check_handle(hTemp, file);
-    temp_handles.push_back(hTemp);
+    temp_fds.push_back(hTemp);
   }
 
-  HANDLE output =
-      CreateFileA(output_file.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                  FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, NULL);
-  check_handle(output, output_file);
+  ssize_t output_fd = lab2_open(output_file.c_str());
+  check_handle(output_fd, output_file);
 
-  std::vector<int> min_elements(temp_handles.size());
-  std::vector<bool> eof_flags(temp_handles.size(), false);
+  std::vector<int> min_elements(temp_fds.size());
+  std::vector<bool> eof_flags(temp_fds.size(), false);
 
-  DWORD bytesRead;
-  for (size_t i = 0; i < temp_handles.size(); ++i) {
-    if (!ReadFile(temp_handles[i], &min_elements[i], sizeof(int), &bytesRead,
-                  NULL) ||
-        bytesRead == 0) {
+  ssize_t bytesRead;
+
+  for (size_t i = 0; i < temp_fds.size(); ++i) {
+    if (lab2_read(temp_fds[i],
+                  reinterpret_cast<unsigned char *>(&min_elements[i]),
+                  sizeof(int)) != 0) {
       eof_flags[i] = true;
     }
   }
@@ -100,29 +107,27 @@ void merge_files(const std::vector<std::string> &temp_files,
 
     buffer.push_back(min_value);
 
-    if (!ReadFile(temp_handles[min_index], &min_elements[min_index],
-                  sizeof(int), &bytesRead, NULL) ||
-        bytesRead == 0) {
+    if (lab2_read(temp_fds[min_index],
+                  reinterpret_cast<unsigned char *>(&min_elements[min_index]),
+                  sizeof(int)) != 0) {
       eof_flags[min_index] = true;
     }
 
     if (buffer.size() == buffer_size) {
-      DWORD bytesWritten;
-      WriteFile(output, buffer.data(), buffer.size() * sizeof(int),
-                &bytesWritten, NULL);
+      lab2_write(output_fd, reinterpret_cast<unsigned char *>(buffer.data()),
+                 buffer.size() * sizeof(int));
       buffer.clear();
     }
   }
 
   if (!buffer.empty()) {
-    DWORD bytesWritten;
-    WriteFile(output, buffer.data(), buffer.size() * sizeof(int), &bytesWritten,
-              NULL);
+    lab2_write(output_fd, reinterpret_cast<unsigned char *>(buffer.data()),
+               buffer.size() * sizeof(int));
   }
+  lab2_close(output_fd);
 
-  CloseHandle(output);
-  for (auto handle : temp_handles) {
-    CloseHandle(handle);
+  for (auto fd : temp_fds) {
+    lab2_close(fd);
   }
 }
 
@@ -132,26 +137,27 @@ int main(int argc, char *argv[]) {
               << std::endl;
     return 1;
   }
+
   const std::string input_file = argv[1];
   const std::string output_file = argv[2];
   const std::string temp_prefix = "temp_chunk_";
 
   const size_t max_memory_size = get_file_size(input_file) / 8;
 
-  HANDLE input = CreateFileA(input_file.c_str(), GENERIC_READ, 0, NULL,
-                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-  check_handle(input, input_file);
+  ssize_t input_fd = lab2_open(input_file.c_str());
+
+  check_handle(input_fd, input_file);
 
   std::vector<std::string> temp_files;
   size_t chunk_index = 0;
 
   for (int i = 0; i < 8; i++) {
     std::string temp_file = temp_prefix + std::to_string(chunk_index++);
-    sort_and_save_chunk(input, temp_file, max_memory_size / sizeof(int));
+    sort_and_save_chunk(input_fd, temp_file, max_memory_size / sizeof(int));
     temp_files.push_back(temp_file);
   }
 
-  CloseHandle(input);
+  lab2_close(input_fd);
 
   merge_files(temp_files, output_file);
 
