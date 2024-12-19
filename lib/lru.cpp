@@ -51,16 +51,12 @@ void _free(void *ptr) {
 
 // Function to report memory leaks
 __declspec(dllexport) void __cdecl reportLeaks() {
-  if (allocations.empty()) {
-    std::cout << "No memory leaks detected." << std::endl;
-  } else {
+  if (!allocations.empty()) {
     std::cout << "Memory leaks detected:" << std::endl;
     for (const auto &pair : allocations) {
       std::cout << "Leaked pointer: " << pair.first << ", Size: " << pair.second
                 << " bytes" << std::endl;
     }
-  }
-  if (totalAllocated) {
     std::cout << "Total allocated memory: " << totalAllocated << " bytes"
               << std::endl;
     std::cout << "Total lru_current_size: " << lru_current_size << std::endl;
