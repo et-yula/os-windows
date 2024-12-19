@@ -16,6 +16,7 @@ __declspec(dllimport) ssize_t
     __cdecl lab2_write(int fd, unsigned char *buf, size_t count);
 __declspec(dllimport) off_t __cdecl lab2_lseek(int fd, off_t offset);
 __declspec(dllimport) ssize_t __cdecl lab2_fsync(int fd);
+__declspec(dllimport) void __cdecl reportLeaks();
 
 void check_handle(ssize_t handle, const std::string &filename) {
   if (handle < 0) {
@@ -165,5 +166,6 @@ int main(int argc, char *argv[]) {
     remove(file.c_str());
   }
 
+  reportLeaks();
   return 0;
 }
