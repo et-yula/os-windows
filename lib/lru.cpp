@@ -134,8 +134,7 @@ void lru_add_to_cache(int fd, off_t offset, void *data) {
   auto it = lru_cache_map.find({fd, offset});
   if (it != lru_cache_map.end()) {
     lru_node *node = it->second;
-    _free(node->data);
-    printf("+");
+    if (node->data != data) _free(node->data);
     node->data = data;
 
     if (node->prev) {
